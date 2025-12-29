@@ -1,7 +1,30 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+
+const dragState = {
+  isDragging: false,
+  startMouseX: 0,
+  startMouseY: 0,
+  startWindowX: 0,
+  startWindowY: 0
+}
+
+function setupDragHandlers(win: BrowserWindow): () => void {
+  const handleMouseMove = (): void => {
+    if (!dragState.isDragging) return
+
+    const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint()
+    const deltaX = mouseX - dragState.startMouseX
+    const deltaY = mouseY - dragState.startMouseY
+
+    win.setPosition(dragState.startWindowX + deltaX, dragState.startWindowY + deltaY)
+  }
+
+  const interval = setInterval(handleMouseMove, 16)
+  return () => clearInterval(interval)
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -53,18 +76,42 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
   ipcMain.on('set-ignore-mouse-events', (event, ignore: boolean) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window) return
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
 
     if (ignore) {
-      window.setIgnoreMouseEvents(true, { forward: true })
+      win.setIgnoreMouseEvents(true, { forward: true })
       return
     }
 
-    window.setIgnoreMouseEvents(false)
+    win.setIgnoreMouseEvents(false)
+  })
+
+  let cleanupDrag: (() => void) | null = null
+
+  ipcMain.on('start-drag', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+
+    const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint()
+    const [winX, winY] = win.getPosition()
+
+    dragState.isDragging = true
+    dragState.startMouseX = mouseX
+    dragState.startMouseY = mouseY
+    dragState.startWindowX = winX
+    dragState.startWindowY = winY
+
+    cleanupDrag = setupDragHandlers(win)
+  })
+
+  ipcMain.on('stop-drag', () => {
+    dragState.isDragging = false
+    if (cleanupDrag) {
+      cleanupDrag()
+      cleanupDrag = null
+    }
   })
 
   createWindow()

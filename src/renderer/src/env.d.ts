@@ -3,5 +3,7 @@
 interface Window {
   api?: {
     setIgnoreMouseEvents: (ignore: boolean) => void
+    startDrag: () => void
+    stopDrag: () => void
   }
 }

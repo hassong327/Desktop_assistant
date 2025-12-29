@@ -1,5 +1,11 @@
 @import './base.css';
 
+html,
+body,
+#root {
+  pointer-events: none;
+}
+
 body {
   display: flex;
   align-items: center;
@@ -20,7 +26,11 @@ body {
 .character {
   width: 256px;
   height: auto;
+  pointer-events: auto;
   -webkit-user-drag: none;
-  -webkit-app-region: drag;
   cursor: grab;
+}
+
+.character:active {
+  cursor: grabbing;
 }

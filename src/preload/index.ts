@@ -5,6 +5,12 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   setIgnoreMouseEvents: (ignore: boolean): void => {
     ipcRenderer.send('set-ignore-mouse-events', ignore)
+  },
+  startDrag: (): void => {
+    ipcRenderer.send('start-drag')
+  },
+  stopDrag: (): void => {
+    ipcRenderer.send('stop-drag')
   }
 }
 
