@@ -6,8 +6,10 @@ my-ai-pet은 데스크톱 화면 위를 자유롭게 부유하는 투명한 AI �
 
 - **투명도 기반 클릭 통과**: 캐릭터의 투명한 영역은 마우스 클릭이 통과되어 뒤쪽의 창을 제어할 수 있습니다.
 - **3가지 상호작용 모드**: 상황에 따라 캐릭터의 반응 방식을 전환할 수 있습니다.
+- **별도 채팅 창**: 캐릭터 클릭 시 옆에 독립된 채팅 창이 열립니다. 버블 스타일 UI로 가독성이 높습니다.
 - **IPC 기반 윈도우 드래그**: 타이틀 바가 없는 프레임리스 윈도우에서 매끄러운 드래그 이동을 지원합니다.
 - **로컬 AI 연동**: Ollama API를 사용하여 오프라인에서도 AI와 대화할 수 있습니다.
+- **캐릭터 성격**: 친근하고 귀여운 말투로 대화합니다.
 - **상태 유지**: 앱 재시작 시에도 마지막 윈도우 위치와 캐릭터 크기를 기억합니다.
 - **시스템 트레이**: 트레이 메뉴를 통해 캐릭터 크기 조절(100px~500px) 및 앱 종료가 가능합니다.
 
@@ -18,14 +20,18 @@ my-ai-pet은 데스크톱 화면 위를 자유롭게 부유하는 투명한 AI �
 - **Build Tool**: Vite (electron-vite)
 - **AI Engine**: Ollama (Local LLM)
 - **State Management**: electron-store
-- **Styling**: styled-components, Tailwind CSS
 
 ## 빠른 시작
 
 ### 필수 사항
 
 - [Ollama](https://ollama.com/)가 설치되어 있고 실행 중이어야 합니다.
-- `llama3` 또는 설정된 모델이 다운로드되어 있어야 합니다.
+- `llama3.2` 또는 설정된 모델이 다운로드되어 있어야 합니다.
+
+```bash
+# Ollama 모델 다운로드
+ollama pull llama3.2
+```
 
 ### 설치 및 실행
 
@@ -42,6 +48,17 @@ npm run build:win
 # 프로덕션 빌드 (macOS)
 npm run build:mac
 ```
+
+## 사용법
+
+1. `npm run dev`로 앱 실행
+2. 캐릭터가 화면에 나타남 (기본: passthrough 모드)
+3. `Cmd/Ctrl + Shift + D`로 모드 전환:
+   - **passthrough**: 투명 영역 클릭 통과 (기본)
+   - **interactive**: 캐릭터 클릭 가능 (파란 glow)
+   - **ghost**: 완전히 클릭 통과 (반투명)
+4. interactive 모드에서 캐릭터 클릭 → 채팅 창 열림
+5. 메시지 입력 후 전송 → AI 응답
 
 ## 핵심 개념
 
@@ -60,10 +77,26 @@ npm run build:mac
 사용자 환경에 따라 캐릭터의 간섭 정도를 조절합니다. 전역 단축키 `Cmd/Ctrl + Shift + D`로 순환 전환할 수 있습니다.
 
 - **passthrough (기본)**: 알파 채널 기반 감지가 활성화됩니다. 캐릭터 몸체만 클릭 가능합니다.
-- **interactive**: 투명도와 상관없이 윈도우 전체 영역이 클릭을 받습니다. 채팅 입력 시 유리합니다.
+- **interactive**: 캐릭터 클릭 시 채팅 창이 열립니다. 파란색 glow 효과로 구분됩니다.
 - **ghost**: 모든 마우스 이벤트를 무시합니다. 캐릭터는 보이지만 뒤쪽 작업에 전혀 방해를 주지 않습니다.
 
-### 3. IPC 기반 윈도우 드래그 (IPC Window Dragging)
+### 3. 이중 창 아키텍처 (Dual Window Architecture)
+
+```
+┌─────────────────┐         ┌─────────────────────┐
+│  Pet Window     │         │  Chat Window        │
+│  (투명, 고정)   │  클릭→  │  (불투명, 버블 UI)  │
+│ ┌─────────────┐ │         │ ┌─────────────────┐ │
+│ │  Character  │ │         │ │ 대화 메시지     │ │
+│ │    🐾       │ │         │ │                 │ │
+│ └─────────────┘ │         │ │ [입력...] [>]   │ │
+└─────────────────┘         └─────────────────────┘
+```
+
+- **Pet Window**: 투명, 고정 크기, 캐릭터만 표시
+- **Chat Window**: 불투명 (#1a1a2e), 380x500, 버블 스타일 채팅
+
+### 4. IPC 기반 윈도우 드래그 (IPC Window Dragging)
 
 투명/프레임리스 윈도우에서는 표준 `-webkit-app-region: drag` 사용 시 마우스 이벤트 통과 기능과 충돌이 발생할 수 있어 커스텀 로직을 사용합니다.
 
@@ -78,16 +111,25 @@ npm run build:mac
 ```text
 src/
 ├── main/
-│   ├── services/           # AI 연동 및 비즈니스 로직
-│   └── index.ts            # 메인 프로세스, 윈도우 및 IPC 설정
+│   ├── services/
+│   │   └── ollamaService.ts    # AI 채팅 (성격 + 히스토리)
+│   └── index.ts                # 메인 프로세스, 이중 창 관리
 ├── preload/
-│   └── index.ts            # 렌더러-메인 간 브리지 API 정의
-└── renderer/src/
-    ├── assets/             # 캐릭터 리소스 및 CSS
-    ├── components/         # React 컴포넌트 (ChatBubble 등)
-    ├── hooks/              # 핵심 로직 (투명도, 드래그, 모드 관리)
-    ├── App.tsx             # 루트 컴포넌트
-    └── main.tsx            # 엔트리 포인트
+│   ├── index.ts                # IPC 브리지
+│   └── index.d.ts              # 타입 정의
+└── renderer/
+    ├── index.html              # 펫 창 엔트리
+    ├── chat.html               # 채팅 창 엔트리
+    └── src/
+        ├── assets/
+        │   ├── characters/     # 캐릭터 이미지
+        │   ├── main.css        # 펫 스타일
+        │   └── chat.css        # 채팅 스타일
+        ├── hooks/              # React 훅 (투명도, 드래그, 모드)
+        ├── App.tsx             # 펫 컴포넌트
+        ├── ChatApp.tsx         # 채팅 컴포넌트
+        ├── main.tsx            # 펫 엔트리
+        └── chat-main.tsx       # 채팅 엔트리
 ```
 
 ## IPC API Reference
@@ -98,6 +140,8 @@ src/
 | `start-drag` / `stop-drag` | `send`   | 커스텀 윈도우 드래그 시작/종료        |
 | `get-interaction-mode`     | `invoke` | 현재 상호작용 모드 조회               |
 | `set-interaction-mode`     | `send`   | 상호작용 모드 변경                    |
+| `toggle-chat`              | `send`   | 채팅 창 토글                          |
+| `close-chat`               | `send`   | 채팅 창 닫기                          |
 | `chat`                     | `invoke` | Ollama AI와 대화 수행                 |
 | `get-character-size`       | `invoke` | 저장된 캐릭터 크기 조회               |
 
@@ -105,4 +149,13 @@ src/
 
 - **코드 스타일**: 세미콜론 미사용, 홑따옴표(`'`) 사용, 2스페이스 들여쓰기를 권장합니다.
 - **경로 별칭**: `@renderer/*`를 사용하여 `src/renderer/src/*` 경로에 접근할 수 있습니다.
-- **투명도 유지**: 윈도우 배경에 불투명한 색상을 지정하지 않도록 주의하십시오. 모든 UI 요소는 `App.tsx` 내에서 절대 좌표로 배치됩니다.
+- **멀티 페이지**: `electron.vite.config.ts`에서 `rollupOptions.input`으로 여러 HTML 엔트리 설정.
+- **펫 창**: `transparent: true` 유지, 불투명 배경 금지.
+- **채팅 창**: `transparent: false`, 불투명 배경으로 가독성 확보.
+
+## 단축키
+
+| 단축키                 | 설명                    |
+| ---------------------- | ----------------------- |
+| `Cmd/Ctrl + Shift + D` | 상호작용 모드 순환 전환 |
+| `ESC` (채팅 창)        | 채팅 창 닫기            |

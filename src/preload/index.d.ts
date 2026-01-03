@@ -13,6 +13,8 @@ export interface CustomAPI {
   chat: (message: string) => Promise<{ success: boolean; response?: string; error?: string }>
   getCharacterSize: () => Promise<number>
   setCharacterSize: (size: number) => void
+  toggleChat: () => void
+  closeChat: () => void
 }
 
 declare global {

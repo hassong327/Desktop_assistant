@@ -42,6 +42,12 @@ const api = {
   },
   setCharacterSize: (size: number): void => {
     ipcRenderer.send('set-character-size', size)
+  },
+  toggleChat: (): void => {
+    ipcRenderer.send('toggle-chat')
+  },
+  closeChat: (): void => {
+    ipcRenderer.send('close-chat')
   }
 }
 

@@ -20,5 +20,7 @@ interface Window {
     chat: (message: string) => Promise<ChatResponse>
     getCharacterSize: () => Promise<number>
     setCharacterSize: (size: number) => void
+    toggleChat: () => void
+    closeChat: () => void
   }
 }

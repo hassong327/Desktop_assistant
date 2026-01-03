@@ -16,6 +16,8 @@ import icon from '../../resources/icon.png?asset'
 import { chat as ollamaChat } from './services/ollamaService'
 
 let tray: Tray | null = null
+let mainWindow: BrowserWindow | null = null
+let chatWindow: BrowserWindow | null = null
 
 interface StoreSchema {
   windowPosition: { x: number; y: number } | null
@@ -30,10 +32,7 @@ const store = new StoreConstructor<StoreSchema>({
   }
 })
 
-const DEFAULT_SIZE = store.get('characterSize')
-let currentWindowSize = { width: DEFAULT_SIZE, height: DEFAULT_SIZE }
 let interactionMode: 'passthrough' | 'interactive' | 'ghost' = 'passthrough'
-let mainWindow: BrowserWindow | null = null
 
 const dragState = {
   isDragging: false,
@@ -44,6 +43,8 @@ const dragState = {
 }
 
 function setupDragHandlers(win: BrowserWindow): () => void {
+  const charSize = store.get('characterSize')
+
   const handleMouseMove = (): void => {
     if (!dragState.isDragging) return
 
@@ -54,8 +55,8 @@ function setupDragHandlers(win: BrowserWindow): () => void {
     win.setBounds({
       x: dragState.startWindowX + deltaX,
       y: dragState.startWindowY + deltaY,
-      width: currentWindowSize.width,
-      height: currentWindowSize.height
+      width: charSize,
+      height: charSize
     })
   }
 
@@ -87,8 +88,6 @@ function createWindow(): void {
     }
   })
 
-  currentWindowSize = { width: savedSize, height: savedSize }
-
   mainWindow.setAlwaysOnTop(true, 'screen-saver')
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
@@ -100,6 +99,7 @@ function createWindow(): void {
     if (!mainWindow) return
     const [x, y] = mainWindow.getPosition()
     store.set('windowPosition', { x, y })
+    repositionChatWindow()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -114,9 +114,74 @@ function createWindow(): void {
   }
 }
 
+function createChatWindow(): void {
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    chatWindow.show()
+    chatWindow.focus()
+    return
+  }
+
+  if (!mainWindow) return
+
+  const petBounds = mainWindow.getBounds()
+
+  chatWindow = new BrowserWindow({
+    width: 380,
+    height: 500,
+    x: petBounds.x + petBounds.width + 16,
+    y: petBounds.y,
+    show: false,
+    frame: false,
+    transparent: false,
+    backgroundColor: '#1a1a2e',
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  chatWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    chatWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/chat.html`)
+  } else {
+    chatWindow.loadFile(join(__dirname, '../renderer/chat.html'))
+  }
+
+  chatWindow.on('ready-to-show', () => {
+    chatWindow?.show()
+  })
+
+  chatWindow.on('closed', () => {
+    chatWindow = null
+  })
+}
+
+function toggleChatWindow(): void {
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    if (chatWindow.isVisible()) {
+      chatWindow.hide()
+    } else {
+      chatWindow.show()
+      chatWindow.focus()
+    }
+  } else {
+    createChatWindow()
+  }
+}
+
+function repositionChatWindow(): void {
+  if (!chatWindow || chatWindow.isDestroyed() || !mainWindow) return
+
+  const petBounds = mainWindow.getBounds()
+  chatWindow.setPosition(petBounds.x + petBounds.width + 16, petBounds.y)
+}
+
 function setCharacterSize(size: number): void {
   store.set('characterSize', size)
-  currentWindowSize = { width: size, height: size }
   if (mainWindow) {
     mainWindow.setSize(size, size)
   }
@@ -176,8 +241,6 @@ app.whenReady().then(() => {
   ipcMain.on('resize-window', (event, width: number, height: number) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
-
-    currentWindowSize = { width, height }
     win.setSize(width, height)
   })
 
@@ -211,15 +274,24 @@ app.whenReady().then(() => {
     return interactionMode
   })
 
-  ipcMain.on('set-interaction-mode', (event, mode: 'passthrough' | 'interactive' | 'ghost') => {
+  ipcMain.on('set-interaction-mode', (_, mode: 'passthrough' | 'interactive' | 'ghost') => {
     interactionMode = mode
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return
+    if (!mainWindow) return
 
     if (mode === 'ghost') {
-      win.setIgnoreMouseEvents(true, { forward: true })
+      mainWindow.setIgnoreMouseEvents(true, { forward: true })
     } else if (mode === 'interactive') {
-      win.setIgnoreMouseEvents(false)
+      mainWindow.setIgnoreMouseEvents(false)
+    }
+  })
+
+  ipcMain.on('toggle-chat', () => {
+    toggleChatWindow()
+  })
+
+  ipcMain.on('close-chat', () => {
+    if (chatWindow && !chatWindow.isDestroyed()) {
+      chatWindow.hide()
     }
   })
 
