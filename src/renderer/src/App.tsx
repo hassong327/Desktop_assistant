@@ -1,11 +1,12 @@
 import { useRef, useCallback } from 'react'
-import { usePixelTransparency, useWindowDrag, useInteractionMode } from './hooks'
+import { usePixelTransparency, useWindowDrag, useInteractionMode, useCharacterSize } from './hooks'
 
 function App(): React.JSX.Element {
   const characterImage = new URL('./assets/characters/A.png', import.meta.url).toString()
   const imageRef = useRef<HTMLImageElement | null>(null)
 
   const { mode, isInteractive, isGhost } = useInteractionMode()
+  const characterSize = useCharacterSize()
   const { checkPixelAlpha } = usePixelTransparency({
     imageRef,
     enabled: mode === 'passthrough'
@@ -28,6 +29,7 @@ function App(): React.JSX.Element {
         className={`character ${mode}`}
         src={characterImage}
         alt="character"
+        style={{ width: characterSize, height: characterSize }}
         onMouseDown={handleMouseDown}
         onClick={handleCharacterClick}
       />

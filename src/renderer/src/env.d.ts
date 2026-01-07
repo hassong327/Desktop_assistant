@@ -8,19 +8,22 @@ interface ChatResponse {
   error?: string
 }
 
+interface TauriApi {
+  setIgnoreMouseEvents: (ignore: boolean) => Promise<void>
+  startDrag: () => Promise<void>
+  stopDrag: () => void
+  resizeWindow: (width: number, height: number) => Promise<void>
+  getInteractionMode: () => Promise<InteractionMode>
+  setInteractionMode: (mode: InteractionMode) => Promise<void>
+  onInteractionModeChanged: (callback: (mode: InteractionMode) => void) => () => void
+  chat: (message: string) => Promise<ChatResponse>
+  getCharacterSize: () => Promise<number>
+  setCharacterSize: (size: number) => Promise<void>
+  onCharacterSizeChanged: (callback: (size: number) => void) => () => void
+  toggleChat: () => Promise<void>
+  closeChat: () => Promise<void>
+}
+
 interface Window {
-  api?: {
-    setIgnoreMouseEvents: (ignore: boolean) => void
-    startDrag: () => void
-    stopDrag: () => void
-    resizeWindow: (width: number, height: number) => void
-    getInteractionMode: () => Promise<InteractionMode>
-    setInteractionMode: (mode: InteractionMode) => void
-    onInteractionModeChanged: (callback: (mode: InteractionMode) => void) => () => void
-    chat: (message: string) => Promise<ChatResponse>
-    getCharacterSize: () => Promise<number>
-    setCharacterSize: (size: number) => void
-    toggleChat: () => void
-    closeChat: () => void
-  }
+  api?: TauriApi
 }
